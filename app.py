@@ -3,6 +3,7 @@ from pymongo import MongoClient
 from bson import ObjectId
 import google.generativeai as genai
 import json
+import re
 
 # ==============================
 # CONFIGURACIÓN DE ESTILO
@@ -39,26 +40,27 @@ st.markdown("""
 # ==============================
 genai.configure(api_key="AIzaSyA0oGgigHTC3EqaGBTTro62yUFrVWoS2J0")
 
-modelo = genai.GenerativeModel("gemini-2.5-pro")
+modelo = genai.GenerativeModel("gemini-1.5-flash")
 
-def procesar_pedido(texto):
-    prompt = f"""
-    Eres un asistente para un restaurante gourmet.
-    Interpreta el pedido del cliente y devuelve SOLO JSON con esta estructura:
 
-    {{
-        "cliente": "",
-        "items": [
-            {{"producto": "", "cantidad": 0}}
-        ],
-        "observaciones": ""
-    }}
-
-    Texto del cliente: {texto}
+# ======================
+# FIX PARA LIMPIAR EL JSON
+# ======================
+def limpiar_json(texto):
     """
+    Extrae solo el JSON válido de la respuesta de Gemini.
+    Elimina bloques Markdown: ```json ``` y cualquier texto adicional.
+    """
+    # Eliminar bloques ```json ``` o ``` 
+    texto = texto.replace("```json", "")
+    texto = texto.replace("```", "")
 
-    respuesta = modelo.generate_content(prompt)
-    return respuesta.text
+    # Buscar el primer { y el último }
+    match = re.search(r"\{[\s\S]*\}", texto)
+    if match:
+        return match.group(0)  # devuelve solo el JSON
+
+    return None
 
 
 # ==============================
@@ -98,7 +100,7 @@ tab1, tab2 = st.tabs(["🧾 Realizar Pedido", "📂 Gestión de Pedidos"])
 # ==========================================================
 with tab1:
     st.markdown('<p class="titulo">🍽️ Restaurante Inteligente</p>', unsafe_allow_html=True)
-    st.write("Haz tu pedido usando lenguaje natural. La IA lo interpretará de forma automática.")
+    st.write("Haz tu pedido usando lenguaje natural. La IA lo interpretará automáticamente.")
 
     col1, col2 = st.columns([2, 1])
 
@@ -109,17 +111,27 @@ with tab1:
             if entrada.strip() == "":
                 st.warning("Por favor ingresa un texto.")
             else:
-                resultado = procesar_pedido(entrada)
+                resultado = modelo.generate_content(entrada).text
 
                 st.markdown('<p class="subtitulo">🧾 Resultado de la IA</p>', unsafe_allow_html=True)
                 st.code(resultado)
 
-                try:
-                    pedido_json = json.loads(resultado)
-                except:
-                    st.error("❌ El modelo no devolvió un JSON válido.")
-                    pedido_json = None
+                # ====================
+                # LIMPIAR JSON
+                # ====================
+                json_limpio = limpiar_json(resultado)
 
+                if not json_limpio:
+                    st.error("❌ No se pudo extraer JSON válido.")
+                    pedido_json = None
+                else:
+                    try:
+                        pedido_json = json.loads(json_limpio)
+                    except:
+                        st.error("❌ El contenido no es JSON válido.")
+                        pedido_json = None
+
+                # Guardar pedido
                 if pedido_json:
                     if st.button("💾 Guardar Pedido"):
                         crear_pedido(pedido_json)
@@ -169,3 +181,4 @@ with tab2:
                     st.experimental_rerun()
 
             st.markdown('</div>', unsafe_allow_html=True)
+
