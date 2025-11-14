@@ -36,35 +36,51 @@ st.markdown("""
 
 
 # ==============================
-# CONFIGURACIÓN DE GEMINI (SIN SECRETS)
+# CONFIGURACIÓN GEMINI (SIN SECRETS)
 # ==============================
 genai.configure(api_key="AIzaSyC9Lq7iHABeXYtNub2GwnOVW0Qmp9Tjrwc")
-
 modelo = genai.GenerativeModel("gemini-2.5-pro")
 
 
-# ======================
-# FIX PARA LIMPIAR EL JSON
-# ======================
-def limpiar_json(texto):
-    """
-    Extrae solo el JSON válido de la respuesta de Gemini.
-    Elimina bloques Markdown: ```json ``` y cualquier texto adicional.
-    """
-    # Eliminar bloques ```json ``` o ``` 
-    texto = texto.replace("```json", "")
-    texto = texto.replace("```", "")
+# ==============================
+# FUNCIÓN PARA PROCESAR PEDIDO
+# ==============================
+def procesar_pedido(texto):
+    prompt = f"""
+    Eres un asistente para un restaurante.
+    Tu tarea es interpretar el pedido y devolver SOLO JSON válido.
+    
+    FORMATO OBLIGATORIO:
+    {{
+        "cliente": "",
+        "items": [
+            {{"producto": "", "cantidad": 0}}
+        ],
+        "observaciones": ""
+    }}
 
-    # Buscar el primer { y el último }
+    Responde SOLO con JSON, sin texto adicional.
+
+    Pedido del cliente: {texto}
+    """
+
+    respuesta = modelo.generate_content(prompt)
+    return respuesta.text
+
+
+# ==============================
+# FIX PARA LIMPIAR JSON
+# ==============================
+def limpiar_json(texto):
+    texto = texto.replace("```json", "").replace("```", "")
     match = re.search(r"\{[\s\S]*\}", texto)
     if match:
-        return match.group(0)  # devuelve solo el JSON
-
+        return match.group(0)
     return None
 
 
 # ==============================
-# CONFIGURACIÓN DE MONGODB (SIN SECRETS)
+# MONGODB (SIN SECRETS)
 # ==============================
 MONGO_URI = "mongodb+srv://danielquis21_db_user:hoambroti2013@cluster0.le4sexx.mongodb.net/"
 
@@ -73,9 +89,7 @@ db = client["restaurante"]
 pedidos = db["pedidos"]
 
 
-# ==============================
 # CRUD
-# ==============================
 def crear_pedido(data):
     return pedidos.insert_one(data)
 
@@ -89,6 +103,7 @@ def eliminar_pedido(id):
     return pedidos.delete_one({"_id": ObjectId(id)})
 
 
+
 # ==============================
 # INTERFAZ CON TABS
 # ==============================
@@ -100,43 +115,39 @@ tab1, tab2 = st.tabs(["🧾 Realizar Pedido", "📂 Gestión de Pedidos"])
 # ==========================================================
 with tab1:
     st.markdown('<p class="titulo">🍽️ Restaurante Inteligente</p>', unsafe_allow_html=True)
-    st.write("Haz tu pedido usando lenguaje natural. La IA lo interpretará automáticamente.")
+    st.write("Haz tu pedido usando lenguaje natural.")
 
-    col1, col2 = st.columns([2, 1])
+    entrada = st.text_area("¿Qué deseas ordenar hoy?", height=150)
 
-    with col1:
-        entrada = st.text_area("¿Qué deseas ordenar hoy?", height=150)
+    if st.button("🤖 Procesar Pedido con IA"):
+        if entrada.strip() == "":
+            st.warning("Por favor ingresa un texto.")
+        else:
+            # LA CORRECCIÓN IMPORTANTE ESTÁ AQUÍ
+            resultado = procesar_pedido(entrada)
 
-        if st.button("🤖 Procesar Pedido con IA"):
-            if entrada.strip() == "":
-                st.warning("Por favor ingresa un texto.")
+            st.markdown('<p class="subtitulo">🧾 Resultado de la IA</p>', unsafe_allow_html=True)
+            st.code(resultado)
+
+            # LIMPIAR JSON
+            json_limpio = limpiar_json(resultado)
+
+            if not json_limpio:
+                st.error("❌ No se pudo extraer JSON válido.")
+                pedido_json = None
             else:
-                resultado = modelo.generate_content(entrada).text
-
-                st.markdown('<p class="subtitulo">🧾 Resultado de la IA</p>', unsafe_allow_html=True)
-                st.code(resultado)
-
-                # ====================
-                # LIMPIAR JSON
-                # ====================
-                json_limpio = limpiar_json(resultado)
-
-                if not json_limpio:
-                    st.error("❌ No se pudo extraer JSON válido.")
+                try:
+                    pedido_json = json.loads(json_limpio)
+                except:
+                    st.error("❌ El contenido no es JSON válido.")
                     pedido_json = None
-                else:
-                    try:
-                        pedido_json = json.loads(json_limpio)
-                    except:
-                        st.error("❌ El contenido no es JSON válido.")
-                        pedido_json = None
 
-                # Guardar pedido
-                if pedido_json:
-                    if st.button("💾 Guardar Pedido"):
-                        crear_pedido(pedido_json)
-                        st.success("✔ Pedido guardado correctamente")
-                        st.experimental_rerun()
+            if pedido_json:
+                if st.button("💾 Guardar Pedido"):
+                    crear_pedido(pedido_json)
+                    st.success("✔ Pedido guardado correctamente")
+                    st.experimental_rerun()
+
 
 
 # ==========================================================
