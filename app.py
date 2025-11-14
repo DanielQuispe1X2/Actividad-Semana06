@@ -9,7 +9,7 @@ import google.generativeai as genai
 # ==============================
 genai.configure(api_key="AIzaSyA0oGgigHTC3EqaGBTTro62yUFrVWoS2J0")
 
-modelo = genai.GenerativeModel("gemini-pro")
+modelo = genai.GenerativeModel("gemini-1.5-flash")
 
 def procesar_pedido(texto):
     prompt = f"""
