@@ -38,7 +38,7 @@ st.markdown("""
 # ==============================
 # CONFIGURACIÓN DE GEMINI (SIN SECRETS)
 # ==============================
-genai.configure(api_key="AIzaSyA0oGgigHTC3EqaGBTTro62yUFrVWoS2J0")
+genai.configure(api_key="AIzaSyC9Lq7iHABeXYtNub2GwnOVW0Qmp9Tjrwc")
 
 modelo = genai.GenerativeModel("gemini-2.5-pro")
 
