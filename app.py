@@ -1,19 +1,19 @@
-
 import streamlit as st
 from pymongo import MongoClient
 from bson import ObjectId
 import google.generativeai as genai
+import json
 
 # ==============================
 # CONFIGURACIÓN DE GEMINI
 # ==============================
-genai.configure(api_key="AIzaSyA0oGgigHTC3EqaGBTTro62yUFrVWoS2J0")
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-modelo = genai.GenerativeModel("gemini-2.5-pro")
+modelo = genai.GenerativeModel("gemini-2.0-flash")
 
 def procesar_pedido(texto):
     prompt = f"""
-    Eres un asistente para un restaurante. Interpreta el pedido del cliente y devuélvelo en formato JSON:
+    Eres un asistente para un restaurante. Interpreta el pedido del cliente y devuélvelo SOLO en formato JSON:
 
     {{
         "cliente": "",
@@ -33,7 +33,7 @@ def procesar_pedido(texto):
 # ==============================
 # CONFIGURACIÓN DE MONGODB ATLAS
 # ==============================
-MONGO_URI = "mongodb+srv://danielquis21_db_user:hoambroti2013@cluster0.le4sexx.mongodb.net/"
+MONGO_URI = st.secrets["MONGO_URI"]
 
 client = MongoClient(MONGO_URI)
 db = client["restaurante"]
@@ -63,31 +63,51 @@ st.write("Escribe tu pedido en lenguaje natural para que la IA lo procese.")
 
 input_usuario = st.text_input("¿Qué deseas ordenar?")
 
+# ------------------------------
+# PROCESAR PEDIDO
+# ------------------------------
 if st.button("Enviar"):
     if input_usuario.strip() == "":
         st.warning("Por favor escribe un pedido.")
     else:
         resultado = procesar_pedido(input_usuario)
+
         st.subheader("🧾 Resultado interpretado por la IA")
         st.code(resultado)
 
-        if st.button("Guardar Pedido"):
-            try:
-                doc = eval(resultado)
-                crear_pedido(doc)
+        # Intentar convertir a JSON
+        try:
+            data_json = json.loads(resultado)
+        except:
+            st.error("❌ La IA no devolvió JSON válido.")
+            data_json = None
+
+        if data_json:
+            if st.button("Guardar Pedido"):
+                crear_pedido(data_json)
                 st.success("Pedido guardado correctamente ✔️")
-            except Exception as e:
-                st.error(f"Error al guardar: {e}")
+                st.experimental_rerun()
 
 
-# ==============================
-# MOSTRAR PEDIDOS GUARDADOS
-# ==============================
+# ------------------------------
+# MOSTRAR PEDIDOS GUARDADOS (CRUD)
+# ------------------------------
 st.subheader("📂 Pedidos Guardados")
 
-for p in listar_pedidos():
-    st.write(p)
-    if st.button(f"Eliminar {p['_id']}", key=str(p["_id"])):
-        eliminar_pedido(p["_id"])
-        st.warning("Pedido eliminado.")
-        st.experimental_rerun()
+lista = listar_pedidos()
+
+if len(lista) == 0:
+    st.info("No hay pedidos registrados aún.")
+else:
+    for p in lista:
+        st.write(f"### 🧾 Pedido ID: {p['_id']}")
+        st.json({
+            "cliente": p.get("cliente", ""),
+            "items": p.get("items", []),
+            "observaciones": p.get("observaciones", "")
+        })
+
+        if st.button(f"❌ Eliminar pedido", key=f"del_{p['_id']}"):
+            eliminar_pedido(p["_id"])
+            st.warning("Pedido eliminado.")
+            st.experimental_rerun()
