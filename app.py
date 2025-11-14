@@ -9,7 +9,7 @@ import json
 # ==============================
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
 
-modelo = genai.GenerativeModel("gemini-2.0-flash")
+modelo = genai.GenerativeModel("gemini-1.5-flash")
 
 def procesar_pedido(texto):
     prompt = f"""
