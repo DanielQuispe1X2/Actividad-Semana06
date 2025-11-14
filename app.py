@@ -40,7 +40,7 @@ st.markdown("""
 # ==============================
 genai.configure(api_key="AIzaSyA0oGgigHTC3EqaGBTTro62yUFrVWoS2J0")
 
-modelo = genai.GenerativeModel("gemini-1.5-flash")
+modelo = genai.GenerativeModel("gemini-2.5-pro")
 
 
 # ======================
