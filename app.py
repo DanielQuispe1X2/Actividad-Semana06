@@ -10,7 +10,7 @@ import json
 genai.configure(api_key="AIzaSyA0oGgigHTC3EqaGBTTro62yUFrVWoS2J0")
 
 # TE MANTENGO EL MISMO MODELO QUE FUNCIONABA
-modelo = genai.GenerativeModel("gemini-2.0-flash")
+modelo = genai.GenerativeModel("gemini-1.5-flash")
 
 def procesar_pedido(texto):
     prompt = f"""
@@ -129,4 +129,3 @@ else:
             eliminar_pedido(p["_id"])
             st.warning("Pedido eliminado ❌")
             st.experimental_rerun()
-
