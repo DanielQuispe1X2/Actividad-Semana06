@@ -5,16 +5,46 @@ import google.generativeai as genai
 import json
 
 # ==============================
+# CONFIGURACIÓN DE ESTILO
+# ==============================
+st.set_page_config(page_title="Restaurante IA", page_icon="🍽️", layout="wide")
+
+st.markdown("""
+    <style>
+        .titulo {
+            font-size: 40px;
+            font-weight: bold;
+            color: #FF6F3C;
+            text-align: center;
+        }
+        .subtitulo {
+            font-size: 22px;
+            font-weight: bold;
+            color: #444444;
+        }
+        .card {
+            padding: 20px;
+            border-radius: 12px;
+            background-color: #FFF3E0;
+            border: 1px solid #FFB07C;
+            margin-top: 10px;
+            margin-bottom: 10px;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+
+# ==============================
 # CONFIGURACIÓN DE GEMINI (SIN SECRETS)
 # ==============================
 genai.configure(api_key="AIzaSyA0oGgigHTC3EqaGBTTro62yUFrVWoS2J0")
 
-# TE MANTENGO EL MISMO MODELO QUE FUNCIONABA
 modelo = genai.GenerativeModel("gemini-1.5-flash")
 
 def procesar_pedido(texto):
     prompt = f"""
-    Eres un asistente para un restaurante. Interpreta el pedido del cliente y devuélvelo SOLO en formato JSON:
+    Eres un asistente para un restaurante gourmet.
+    Interpreta el pedido del cliente y devuelve SOLO JSON con esta estructura:
 
     {{
         "cliente": "",
@@ -42,7 +72,7 @@ pedidos = db["pedidos"]
 
 
 # ==============================
-# CRUD COMPLETO
+# CRUD
 # ==============================
 def crear_pedido(data):
     return pedidos.insert_one(data)
@@ -58,74 +88,84 @@ def eliminar_pedido(id):
 
 
 # ==============================
-# STREAMLIT UI
+# INTERFAZ CON TABS
 # ==============================
-st.set_page_config(page_title="Chatbot Restaurante", page_icon="🍽️")
-st.title("🍽️ Chatbot de Menú – IA + MongoDB")
+tab1, tab2 = st.tabs(["🧾 Realizar Pedido", "📂 Gestión de Pedidos"])
 
-st.write("Escribe tu pedido en lenguaje natural para que la IA lo procese.")
 
-input_usuario = st.text_input("¿Qué deseas ordenar?")
+# ==========================================================
+# TAB 1 – CHATBOT PARA GENERAR PEDIDO
+# ==========================================================
+with tab1:
+    st.markdown('<p class="titulo">🍽️ Restaurante Inteligente</p>', unsafe_allow_html=True)
+    st.write("Haz tu pedido usando lenguaje natural. La IA lo interpretará de forma automática.")
 
-# ------------------------------
-# PROCESAR PEDIDO
-# ------------------------------
-if st.button("Enviar"):
-    if input_usuario.strip() == "":
-        st.warning("Por favor escribe un pedido.")
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        entrada = st.text_area("¿Qué deseas ordenar hoy?", height=150)
+
+        if st.button("🤖 Procesar Pedido con IA"):
+            if entrada.strip() == "":
+                st.warning("Por favor ingresa un texto.")
+            else:
+                resultado = procesar_pedido(entrada)
+
+                st.markdown('<p class="subtitulo">🧾 Resultado de la IA</p>', unsafe_allow_html=True)
+                st.code(resultado)
+
+                try:
+                    pedido_json = json.loads(resultado)
+                except:
+                    st.error("❌ El modelo no devolvió un JSON válido.")
+                    pedido_json = None
+
+                if pedido_json:
+                    if st.button("💾 Guardar Pedido"):
+                        crear_pedido(pedido_json)
+                        st.success("✔ Pedido guardado correctamente")
+                        st.experimental_rerun()
+
+
+# ==========================================================
+# TAB 2 – CRUD DE PEDIDOS
+# ==========================================================
+with tab2:
+    st.markdown('<p class="titulo">📂 Gestión de Pedidos</p>', unsafe_allow_html=True)
+
+    lista = listar_pedidos()
+
+    if not lista:
+        st.info("Aún no hay pedidos registrados.")
     else:
-        resultado = procesar_pedido(input_usuario)
-        st.subheader("🧾 Resultado interpretado por la IA")
-        st.code(resultado)
+        for p in lista:
+            st.markdown('<div class="card">', unsafe_allow_html=True)
 
-        # Convertir a JSON seguro
-        try:
-            data_json = json.loads(resultado)
-        except:
-            st.error("❌ La IA devolvió un formato que no es JSON válido.")
-            data_json = None
+            st.markdown(f"### 🧾 Pedido ID: `{p['_id']}`")
+            st.json({
+                "cliente": p.get("cliente", ""),
+                "items": p.get("items", []),
+                "observaciones": p.get("observaciones", "")
+            })
 
-        # Guardar pedido
-        if data_json:
-            if st.button("Guardar Pedido"):
-                crear_pedido(data_json)
-                st.success("Pedido guardado correctamente ✔️")
-                st.experimental_rerun()
+            nuevo_nombre = st.text_input(
+                "Editar nombre del cliente:",
+                value=p.get("cliente", ""),
+                key=f"cliente_{p['_id']}"
+            )
 
+            colA, colB = st.columns([1, 1])
 
-# ------------------------------
-# CRUD: MOSTRAR, ACTUALIZAR Y ELIMINAR
-# ------------------------------
-st.subheader("📂 Pedidos Guardados")
+            with colA:
+                if st.button("Actualizar", key=f"update_{p['_id']}"):
+                    actualizar_pedido(p["_id"], {"cliente": nuevo_nombre})
+                    st.success("✔ Pedido actualizado")
+                    st.experimental_rerun()
 
-lista = listar_pedidos()
+            with colB:
+                if st.button("Eliminar", key=f"delete_{p['_id']}"):
+                    eliminar_pedido(p["_id"])
+                    st.error("🗑 Pedido eliminado")
+                    st.experimental_rerun()
 
-if not lista:
-    st.info("No hay pedidos registrados aún.")
-else:
-    for p in lista:
-        st.write(f"### 🧾 Pedido ID: {p['_id']}")
-        st.json({
-            "cliente": p.get("cliente", ""),
-            "items": p.get("items", []),
-            "observaciones": p.get("observaciones", "")
-        })
-
-        # Campo editable del cliente
-        nuevo_cliente = st.text_input(
-            label=f"Editar cliente ({p['_id']})",
-            value=p.get("cliente", ""),
-            key=f"cliente_{p['_id']}"
-        )
-
-        # Botón de actualizar
-        if st.button(f"Actualizar Pedido {p['_id']}", key=f"update_{p['_id']}"):
-            actualizar_pedido(p["_id"], {"cliente": nuevo_cliente})
-            st.success("Pedido actualizado ✔️")
-            st.experimental_rerun()
-
-        # Botón de eliminar
-        if st.button(f"Eliminar Pedido {p['_id']}", key=f"delete_{p['_id']}"):
-            eliminar_pedido(p["_id"])
-            st.warning("Pedido eliminado ❌")
-            st.experimental_rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
